@@ -1,3 +1,6 @@
+from gevent.pool import Pool
+import gevent.monkey; gevent.monkey.patch_all()
+
 import os
 import sys
 import calendar
@@ -8,8 +11,8 @@ import ujson as json
 import requests
 
 BASE_ENDPOINT = 'https://api.instagram.com/v1'
-INSTAGRAM_CLIENT_ID = os.getenv('INSTAGRAM_CLIENT_ID')
-INSTAGRAM_CLIENT_SECRET = os.getenv('INSTAGRAM_CLIENT_SECRET')
+INSTAGRAM_CLIENT_ID = os.getenv('INSTAGRAM_CLIENT_ID_BKUP_2')
+INSTAGRAM_CLIENT_SECRET = os.getenv('INSTAGRAM_CLIENT_SECRET_BKUP_2')
 
 def get_base_args():
     return {
@@ -27,12 +30,12 @@ def get_response(endpoint, params):
     while tries < max_tries:
         try:
             if r.status_code == 400:
-                return []
+                return json.loads(r.content)
             r.raise_for_status()
             break
         except:
-            print 'Received status_code {}. Sleeping \
-                    for {} seconds.'.format(r.status_code, 5)
+            print 'Received bad status_code. Sleeping \
+                    for 5 seconds.'
             time.sleep(5)
             if params:
                 r = requests.get(endpoint, params=params)
@@ -44,9 +47,7 @@ def get_response(endpoint, params):
 
 def get_next_page_data(response):
     try:
-        'getting next page'
         return response['pagination']
-        print response['pagination']
     except:
         print 'No pagination data!'
         return None
@@ -60,18 +61,17 @@ def get_user_id(username):
         return data[0]['id']
 
 def get_user_data(user_id):
-    endpoint = BASE_ENDPOINT + '/users/{}'\
-            .format(user_id)
+    endpoint = BASE_ENDPOINT + '/users/' + str(user_id)
     args = get_base_args()
     resp = get_response(endpoint, args)
-    if not resp == []:
+    if resp and resp.get('data',None):
         return resp['data']
     else:
-        return []
+        return {}
 
 def get_username(user_id):
     data = get_user_data(user_id)
-    if data == []:
+    if data == {}:
         return 'n/a'
     return data['username']
 
@@ -87,8 +87,7 @@ def get_num_followers(user_id):
 Returns a list of user_ids that a user follows.
 """
 def get_user_ids_followed(user_id, num_follows):
-    endpoint = BASE_ENDPOINT + '/users/{}/follows'\
-            .format(user_id)
+    endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/follows'
     args = get_base_args()
     resp = get_response(endpoint, args)
     next_page = get_next_page_data(resp)
@@ -98,8 +97,6 @@ def get_user_ids_followed(user_id, num_follows):
     while (next_page != None) or (ctr == 0):
         for item in resp['data']:
             user_ids.append(item['id'])
-        print 'num_users: {}'.format(len(set(user_ids)))
-        print 'num_follows: {}'.format(num_follows)
         if len(set(user_ids)) >= num_follows - 10: #todo fix
             break
         else:
@@ -113,8 +110,7 @@ def get_user_ids_followed(user_id, num_follows):
 Returns a list of user_ids that follow a user.
 """
 def get_users_ids_followers(user_id, num_followers):
-    endpoint = BASE_ENDPOINT + '/users/{}/followers'\
-            .format(user_id)
+    endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/followers'
     args = get_base_args()
     resp = get_response(endpoint, args)
     next_page = first_next_page
@@ -138,8 +134,7 @@ def get_users_ids_followers(user_id, num_followers):
 Returns JSON list of a user's most recent posts.
 """
 def get_latest_media_ids(user_id, num_images):
-    endpoint = BASE_ENDPOINT + '/users/{}/media/recent'\
-            .format(user_id)
+    endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/media/recent'
     args = get_base_args()
     args['count'] = num_images
     resp = get_response(endpoint, args)
@@ -152,11 +147,13 @@ def get_latest_media_ids(user_id, num_images):
 Get a list of users that liked a post.
 """
 def get_user_ids_that_like(media_id):
-    endpoint = BASE_ENDPOINT + '/media/{}/likes'\
-            .format(media_id)
-    args = get_base_args()
-    resp = get_response(endpoint, args)
-    return [user['id'] for user in resp['data']]
+    if media_id != -1:
+        endpoint = BASE_ENDPOINT + '/media/' + str(media_id) + '/likes'
+        args = get_base_args()
+        resp = get_response(endpoint, args)
+        if resp and resp.get('data', None):
+            return [user['id'] for user in resp['data']]
+    return []
 
 
 """
@@ -167,20 +164,34 @@ def sort_likes(like_dict):
             key=operator.itemgetter(1),
             reverse=True)
 
+def yield_latest_media_ids(user_id, num_images):
+    endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/media/recent' 
+    args = get_base_args()
+    args['count'] = num_images
+    resp = get_response(endpoint, args)
+    if resp.get('data',None) == None:
+        yield -1
+    else:
+        for media in resp['data']:
+            yield media['id']
+
 def who_does_user_like(username):
     like_dict = {}
     target_user_id = get_user_id(username)
     num_follows = get_num_follows(target_user_id)
     user_ids_followed = get_user_ids_followed(target_user_id, num_follows)
+
+
+    fetch_pool = Pool(100)
+    
     for user_id in user_ids_followed:
-        for media_id in get_latest_media_ids(user_id, 10):
-            if target_user_id in get_user_ids_that_like(media_id):
+        for user_ids in fetch_pool.imap_unordered(get_user_ids_that_like, yield_latest_media_ids(user_id, 10)):
+            if target_user_id in user_ids:
                 try:
                     like_dict[user_id] += 1
                 except:
                     like_dict[user_id] = 1
     
-
     top_ten = sort_likes(like_dict)
     if len(top_ten) > 10:
         top_ten = sort_likes(like_dict)
@@ -188,16 +199,18 @@ def who_does_user_like(username):
         user_id, like_count = item
         print get_username(user_id) + ': ' + str(like_count)
 
-
 def who_likes_user(username):
     like_dict = {}
     target_user_id = get_user_id(username)
-    for media_id in get_latest_media_ids(target_user_id, 50):
-        for user_id in get_user_ids_that_like(media_id):
+    fetch_pool = Pool(100)
+    
+    for user_ids in fetch_pool.imap_unordered(get_user_ids_that_like, yield_latest_media_ids(target_user_id, 50)):
+        for user_id in user_ids:
             try:
                 like_dict[user_id] += 1
             except:
                 like_dict[user_id] = 1
+
     top_ten = sort_likes(like_dict)
     if len(top_ten) > 10:
         top_ten = sort_likes(like_dict)[:10]
