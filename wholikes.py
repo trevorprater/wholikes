@@ -10,18 +10,19 @@ import operator
 import ujson as json
 import requests
 
+#requests.packages.urllib3.disable_warnings()
+
 BASE_ENDPOINT = 'https://api.instagram.com/v1'
-INSTAGRAM_CLIENT_ID = os.getenv('INSTAGRAM_CLIENT_ID_BKUP_2')
-INSTAGRAM_CLIENT_SECRET = os.getenv('INSTAGRAM_CLIENT_SECRET_BKUP_2')
+INSTAGRAM_CLIENT_ID = os.getenv('INSTAGRAM_CLIENT_ID_BKUP')
+INSTAGRAM_CLIENT_SECRET = os.getenv('INSTAGRAM_CLIENT_SECRET_BKUP')
 
 def get_base_args():
     return {
             'client_id': INSTAGRAM_CLIENT_ID,
             'client_secret': INSTAGRAM_CLIENT_SECRET }
 
-def get_response(endpoint, params):
-    print endpoint
-    if params:
+def get_response(endpoint, params={}):
+    if params != {}:
         r = requests.get(endpoint, params=params)
     else:
         r = requests.get(endpoint)
@@ -31,9 +32,15 @@ def get_response(endpoint, params):
         try:
             if r.status_code == 400:
                 return json.loads(r.content)
+            if r.status_code == 404:
+                return HI
             r.raise_for_status()
             break
         except:
+            print r
+            print r.content
+            print endpoint
+            print params
             print 'Received bad status_code. Sleeping \
                     for 5 seconds.'
             time.sleep(5)
@@ -42,7 +49,9 @@ def get_response(endpoint, params):
             else:
                 r = requests.get(endpoint)
             tries += 1
-
+    print endpoint
+    print params
+    print r
     return json.loads(r.content)
 
 def get_next_page_data(response):
@@ -52,43 +61,45 @@ def get_next_page_data(response):
         print 'No pagination data!'
         return None
 
-def get_user_id(username):
+def get_user_id(username, access_token):
     endpoint = BASE_ENDPOINT + '/users/search'
-    args = get_base_args()
+    args = {'access_token': access_token}
     args['q'] = username
-    data = get_response(endpoint, args)['data']
+    data = get_response(endpoint, args)
+    data = data['data']
+
     if len(data) > 0:
         return data[0]['id']
 
-def get_user_data(user_id):
+def get_user_data(user_id, access_token):
     endpoint = BASE_ENDPOINT + '/users/' + str(user_id)
-    args = get_base_args()
+    args = {'access_token': access_token}
     resp = get_response(endpoint, args)
     if resp and resp.get('data',None):
         return resp['data']
     else:
         return {}
 
-def get_username(user_id):
-    data = get_user_data(user_id)
+def get_username(user_id, access_token):
+    data = get_user_data(user_id, access_token)
     if data == {}:
         return 'n/a'
     return data['username']
 
-def get_num_follows(user_id):
-    data = get_user_data(user_id)
+def get_num_follows(user_id, access_token):
+    data = get_user_data(user_id, access_token)
     return data['counts']['follows']
 
-def get_num_followers(user_id):
-    data = get_user_data(user_id)
+def get_num_followers(user_id, access_token):
+    data = get_user_data(user_id, access_token)
     return data['counts']['followers']
 
 """
 Returns a list of user_ids that a user follows.
 """
-def get_user_ids_followed(user_id, num_follows):
+def get_user_ids_followed(user_id, num_follows, access_token):
     endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/follows'
-    args = get_base_args()
+    args = {'access_token': access_token}
     resp = get_response(endpoint, args)
     next_page = get_next_page_data(resp)
     
@@ -109,9 +120,9 @@ def get_user_ids_followed(user_id, num_follows):
 """
 Returns a list of user_ids that follow a user.
 """
-def get_users_ids_followers(user_id, num_followers):
+def get_users_ids_followers(user_id, num_followers, access_token):
     endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/followers'
-    args = get_base_args()
+    args = {'access_token': access_token}
     resp = get_response(endpoint, args)
     next_page = first_next_page
 
@@ -133,9 +144,9 @@ def get_users_ids_followers(user_id, num_followers):
 """
 Returns JSON list of a user's most recent posts.
 """
-def get_latest_media_ids(user_id, num_images):
+def get_latest_media_ids(user_id, num_images, access_token):
     endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/media/recent'
-    args = get_base_args()
+    args = {'access_token': access_token}
     args['count'] = num_images
     resp = get_response(endpoint, args)
     if resp == []:
@@ -146,10 +157,12 @@ def get_latest_media_ids(user_id, num_images):
 """
 Get a list of users that liked a post.
 """
-def get_user_ids_that_like(media_id):
+def get_user_ids_that_like(item):
+    media_id, access_token = item
+
     if media_id != -1:
         endpoint = BASE_ENDPOINT + '/media/' + str(media_id) + '/likes'
-        args = get_base_args()
+        args = {'access_token':access_token}
         resp = get_response(endpoint, args)
         if resp and resp.get('data', None):
             return [user['id'] for user in resp['data']]
@@ -164,28 +177,45 @@ def sort_likes(like_dict):
             key=operator.itemgetter(1),
             reverse=True)
 
-def yield_latest_media_ids(user_id, num_images):
+def yield_latest_media_ids(user_id, num_images, access_token):
     endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/media/recent' 
-    args = get_base_args()
+    args = {'access_token': access_token}
     args['count'] = num_images
     resp = get_response(endpoint, args)
     if resp.get('data',None) == None:
         yield -1
     else:
         for media in resp['data']:
-            yield media['id']
+            yield (media['id'], access_token)
 
-def who_does_user_like(username):
+
+def who_do_i_like(access_token):
     like_dict = {}
-    target_user_id = get_user_id(username)
-    num_follows = get_num_follows(target_user_id)
-    user_ids_followed = get_user_ids_followed(target_user_id, num_follows)
+    endpoint = BASE_ENDPOINT + '/users/self/media/liked'
+    resp = get_response(endpoint, {'access_token': access_token})
+    next_url = resp['pagination']['next_url']
+    
+    user_ids = []
+    for i in range(0,3):
+        resp = get_response(next_url)
+        next_url = resp['pagination']['next_url']
+        
+        user_ids += [u['user']['username'] for u in resp['data']]
+    
+    return set(user_ids) 
+
+
+def who_does_user_like(username, access_token):
+    like_dict = {}
+    target_user_id = get_user_id(username, access_token)
+    num_follows = get_num_follows(target_user_id, access_token)
+    user_ids_followed = get_user_ids_followed(target_user_id, num_follows, access_token)
 
 
     fetch_pool = Pool(100)
     
     for user_id in user_ids_followed:
-        for user_ids in fetch_pool.imap_unordered(get_user_ids_that_like, yield_latest_media_ids(user_id, 10)):
+        for user_ids in fetch_pool.imap_unordered(get_user_ids_that_like, yield_latest_media_ids(user_id, 10, access_token)):
             if target_user_id in user_ids:
                 try:
                     like_dict[user_id] += 1
@@ -197,14 +227,14 @@ def who_does_user_like(username):
         top_ten = sort_likes(like_dict)
     for item in top_ten:
         user_id, like_count = item
-        print get_username(user_id) + ': ' + str(like_count)
+        print get_username(user_id, access_token) + ': ' + str(like_count)
 
-def who_likes_user(username):
+def who_likes_user(username, access_token):
     like_dict = {}
-    target_user_id = get_user_id(username)
+    target_user_id = get_user_id(username, access_token)
     fetch_pool = Pool(100)
     
-    for user_ids in fetch_pool.imap_unordered(get_user_ids_that_like, yield_latest_media_ids(target_user_id, 50)):
+    for user_ids in fetch_pool.imap_unordered(get_user_ids_that_like, yield_latest_media_ids(target_user_id, 30, access_token)):
         for user_id in user_ids:
             try:
                 like_dict[user_id] += 1
@@ -214,9 +244,14 @@ def who_likes_user(username):
     top_ten = sort_likes(like_dict)
     if len(top_ten) > 10:
         top_ten = sort_likes(like_dict)[:10]
+    
+    user_ids = []
+    user_names = []
     for item in top_ten:
         user_id, like_count = item
-        print get_username(user_id) + ': ' + str(like_count)
+        user_ids.append(user_id)
+        user_names.append(get_username(user_id, access_token))
+    return user_names
         
             
 if __name__ == "__main__":
