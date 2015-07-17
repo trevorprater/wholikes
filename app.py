@@ -23,31 +23,42 @@ CONFIG = {
 }
 
 unauthenticated_api = client.InstagramAPI(**CONFIG)
+
+
 def get_nav():
-    nav_menu = ("<h1>Python Instagram</h1>"
-                "<ul>"
-                "<li><a href='/i_like?'>What do I like?</a> Returns liked activity. </li>"
-                "<li><a href='/who_likes_user/particlesarewaves?'>Who likes user?</a> Returns a user's activity from followers. </li>"
-                "</ul>")
+    nav_menu = (
+        "<h1>Python Instagram</h1>"
+        "<ul>"
+        "<li><a href='/i_like?'>What do I like?</a> Returns liked activity. </li>"
+        "<li><a href='/who_likes_user/rtpr'>Who likes user?</a> Returns a user's activity from followers. </li>"
+        "<li><a href='/who_does_user_like/rtpr?'>Who does the user like the of the people they follow?</a> </li>"
+        "</ul>")
     return nav_menu
+
 
 @hook('before_request')
 def setup_request():
     request.session = request.environ['beaker.session']
 
+
 def process_tag_update(update):
     print(update)
 
+
 reactor = subscriptions.SubscriptionsReactor()
-reactor.register_callback(subscriptions.SubscriptionType.TAG, process_tag_update)
+reactor.register_callback(subscriptions.SubscriptionType.TAG,
+                          process_tag_update)
+
 
 @route('/')
 def home():
     try:
-        url = unauthenticated_api.get_authorize_url(scope=["likes","comments"])
+        url = unauthenticated_api.get_authorize_url(
+            scope=["likes", "comments"])
         return '<a href="%s">Connect with Instagram</a>' % url
     except Exception as e:
         print(e)
+
 
 @route('/i_like')
 def i_like():
@@ -56,17 +67,27 @@ def i_like():
     out = []
     for user in users:
         print user
-        out.append("<h1>%s</h1>"%(str(user)))
+        out.append("<h1>%s</h1>" % (str(user)))
     return ''.join(out)
+
 
 @route('/who_likes_user/<username>')
 def who_likes_user(username):
-    print username
     out = []
-    usernames = wholikes.who_likes_user(username, request.session['access_token'])
+    usernames = wholikes.who_likes_user(username,
+                                        request.session['access_token'])
     for un in usernames:
-        out.append("<h1>%s</h1>"%(str(un)))
+        out.append("<h1>%s</h1>" % (str(un)))
     return out
+
+
+@route('/who_does_user_like/<username>')
+def who_does_user_like(username):
+    out = []
+    usernames = wholikes.who_does_user_like(username,
+                                            request.session['access_token'])
+    return usernames
+
 
 @route('/oauth_callback')
 def on_callback():
@@ -74,14 +95,17 @@ def on_callback():
     if not code:
         return 'Missing code'
     try:
-        access_token, user_info = unauthenticated_api.exchange_code_for_access_token(code)
+        access_token, user_info = unauthenticated_api.exchange_code_for_access_token(
+            code)
         if not access_token:
             return 'Could not get access token'
-        api = client.InstagramAPI(access_token=access_token, client_secret=CONFIG['client_secret'])
+        api = client.InstagramAPI(access_token=access_token,
+                                  client_secret=CONFIG['client_secret'])
         request.session['access_token'] = access_token
     except Exception as e:
         print(e)
     return get_nav()
+
 
 @route('/realtime_callback')
 @post('/realtime_callback')
@@ -95,8 +119,10 @@ def on_realtime_callback():
         x_hub_signature = request.header.get('X-Hub-Signature')
         raw_response = request.body.read()
         try:
-            reactor.process(CONFIG['client_secret'], raw_response, x_hub_signature)
+            reactor.process(CONFIG['client_secret'], raw_response,
+                            x_hub_signature)
         except subscriptions.SubscriptionVerifyError:
             print("Signature mismatch")
+
 
 bottle.run(app=app, host='localhost', port=8515, reloader=True)
