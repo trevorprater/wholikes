@@ -3,6 +3,7 @@ import gevent.monkey
 gevent.monkey.patch_all()
 
 import os
+from pprint import pprint
 import sys
 import calendar
 import time
@@ -42,9 +43,8 @@ def get_response(endpoint, params={}):
             break
         except:
             print r
-            print r.content
             print endpoint
-            print params
+            pprint(params)
             print 'Received bad status_code. Sleeping \
                     for 5 seconds.'
 
@@ -54,9 +54,6 @@ def get_response(endpoint, params={}):
             else:
                 r = requests.get(endpoint)
             tries += 1
-    print endpoint
-    print params
-    print r
     return json.loads(r.content)
 
 
@@ -98,71 +95,93 @@ def get_username(user_id, access_token):
 
 def get_num_follows(user_id, access_token):
     data = get_user_data(user_id, access_token)
-    return data['counts']['follows']
+    try:
+        #return max(int(data['counts']['follows']), 500)
+        return int(data['counts']['follows'])
+    except Exception as e:
+        print e
+        pprint(data)
+        return 0
 
 
 def get_num_followers(user_id, access_token):
     data = get_user_data(user_id, access_token)
-    return data['counts']['followers']
+    pprint(data)
+    try:
+        #return max(int(data['counts']['followed_by']), 500)
+        return int(data['counts']['followed_by'])
+    except Exception as e:
+        print e
+        pprint(data)
+        return 0
 
 
-"""
-Returns a list of user_ids that a user follows.
-"""
+def read_ids_from_file(fpath):
+    try:
+        with open(fpath) as f:
+            return [_id.strip() for _id in f.readlines()]
+    except Exception as e:
+        print e
+        return None
 
 
+def write_ids_to_file(fpath, ids):
+    if not os.path.exists(fpath):
+        os.system('touch {}'.format(fpath))
+    with open(fpath, 'w') as f:
+        for _id in ids:
+            f.write(str(_id) + '\n')
+
+
+#Returns a list of user_ids that a user follows.
 def get_user_ids_followed(user_id, num_follows, access_token):
+    ids_from_file = read_ids_from_file('follows/' + str(user_id))
+    if ids_from_file != None:
+        return ids_from_file
+
     endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/follows'
     args = {'access_token': access_token}
     resp = get_response(endpoint, args)
     next_page = get_next_page_data(resp)
-
     user_ids = []
-    ctr = 0
-    while (next_page != None) or (ctr == 0):
-        for item in resp['data']:
+    for item in resp.get('data', []):
+        user_ids.append(item['id'])
+
+    while (next_page and next_page.get('next_url')):
+        resp = get_response(next_page['next_url'], None)
+        next_page = get_next_page_data(resp)
+        for item in resp.get('data', []):
             user_ids.append(item['id'])
-        if len(set(user_ids)) >= num_follows - 10:  #todo fix
-            break
-        else:
-            if next_page.get('next_url', None):
-                resp = get_response(next_page['next_url'], None)
-                next_page = get_next_page_data(resp)
-        ctr += 1
-    return set(user_ids)
+
+    write_ids_to_file('follows/' + str(user_id), list(set(user_ids)))
+    return list(set(user_ids))
 
 
-"""
-Returns a list of user_ids that follow a user.
-"""
+#Returns a list of user_ids that follow a user.
+def get_user_ids_followers(user_id, num_followers, access_token):
+    ids_from_file = read_ids_from_file('followed-by/' + str(user_id))
+    if ids_from_file != None:
+        return ids_from_file
 
-
-def get_users_ids_followers(user_id, num_followers, access_token):
-    endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/followers'
+    endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/followed-by'
     args = {'access_token': access_token}
     resp = get_response(endpoint, args)
-    next_page = first_next_page
-
+    next_page = get_next_page_data(resp)
     user_ids = []
-    ctr = 0
-    while (next_page != None) or (ctr == 0):
-        for item in resp['data']:
+    for item in resp.get('data', []):
+        user_ids.append(item['id'])
+
+    while (next_page and next_page.get('next_url')):
+        resp = get_response(next_page['next_url'], None)
+        next_page = get_next_page_data(resp)
+        for item in resp.get('data', []):
             user_ids.append(item['id'])
-        if len(set(user_ids)) >= num_followers:
-            break
-        else:
-            if next_page.get('next_url', None):
-                resp = get_response(next_page['next_url'], None)
-                next_page = get_next_page_data(resp)
-        ctr += 1
-    return user_ids
+
+    write_ids_to_file('followed-by/' + str(user_id), list(set(user_ids)))
+    return list(set(user_ids))
 
 
-"""
-Returns JSON list of a user's most recent posts.
-"""
-
-
+#Returns JSON list of a user's most recent posts.
 def get_latest_media_ids(user_id, num_images, access_token):
     endpoint = BASE_ENDPOINT + '/users/' + str(user_id) + '/media/recent'
     args = {'access_token': access_token}
@@ -173,11 +192,7 @@ def get_latest_media_ids(user_id, num_images, access_token):
     return [media['id'] for media in resp['data']]
 
 
-"""
-Get a list of users that liked a post.
-"""
-
-
+#Get a list of users that liked a post.
 def get_user_ids_that_like(item):
     media_id, access_token = item
 
@@ -190,11 +205,7 @@ def get_user_ids_that_like(item):
     return [None]
 
 
-"""
-Returns a sorted list of users that provide the most likes.
-"""
-
-
+#Returns a sorted list of users that provide the most likes.
 def sort_likes(like_dict):
     return sorted(like_dict.items(), key=operator.itemgetter(1), reverse=True)
 
