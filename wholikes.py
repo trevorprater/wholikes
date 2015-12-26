@@ -96,7 +96,6 @@ def get_username(user_id, access_token):
 def get_num_follows(user_id, access_token):
     data = get_user_data(user_id, access_token)
     try:
-        #return max(int(data['counts']['follows']), 500)
         return int(data['counts']['follows'])
     except Exception as e:
         print e
@@ -108,7 +107,6 @@ def get_num_followers(user_id, access_token):
     data = get_user_data(user_id, access_token)
     pprint(data)
     try:
-        #return max(int(data['counts']['followed_by']), 500)
         return int(data['counts']['followed_by'])
     except Exception as e:
         print e
@@ -119,7 +117,7 @@ def get_num_followers(user_id, access_token):
 def read_ids_from_file(fpath):
     try:
         with open(fpath) as f:
-            return [_id.strip() for _id in f.readlines()]
+            return json.loads(f.read())
     except Exception as e:
         print e
         return None
@@ -129,8 +127,7 @@ def write_ids_to_file(fpath, ids):
     if not os.path.exists(fpath):
         os.system('touch {}'.format(fpath))
     with open(fpath, 'w') as f:
-        for _id in ids:
-            f.write(str(_id) + '\n')
+        f.write(json.dumps(ids))
 
 
 #Returns a list of user_ids that a user follows.

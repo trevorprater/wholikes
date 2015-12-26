@@ -20,7 +20,7 @@ access_token = None
 
 CONFIG = {
     'client_id': 'f2ad558000f54a519d11c47c1ae8cc70',
-    'client_secret': '8ef039d5b72646378e9a034ca9039a0c',
+    'client_secret': os.getenv('WHOLIKES_SECRET')
     'redirect_uri': 'http://localhost:8515/oauth_callback'
 }
 
