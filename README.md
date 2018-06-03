@@ -14,5 +14,3 @@ Funny story, this rudimentary piece of software yielded my most popular creation
 [The photo was used as an *album cover* for a Japan-based artist, Metatron (I really like the soundtrack and I'm happy to have assited in it's creation)](https://hellobilly.bandcamp.com/releases)
 
 ---
-
-Please do not use the quality of the code in this repo to judge my current skill levels. It was purely a nascent script that went viral.
