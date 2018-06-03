@@ -16,8 +16,3 @@ Funny story, this rudimentary piece of software yielded my most popular creation
 ---
 
 Please do not use the quality of the code in this repo to judge my current skill levels. It was purely a nascent script that went viral.
-
-
-
-Love, Trevor
-
