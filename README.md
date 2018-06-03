@@ -1,7 +1,5 @@
 This code is shit; let it be known.
 
-'
-
 Funny story, this rudimentary piece of software yielded my most popular creation on Dec 25, 2015, resulting in millions of views from people around the globe. Please do not use this code to judge my skils, but please use it to judge my output and results. Below, you will find the output of this simple script.
 
 
