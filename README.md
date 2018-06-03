@@ -11,6 +11,6 @@ Funny story, this rudimentary piece of software yielded my most popular creation
 ---
 [Reddit post (frontpage, Christmas 2015)](https://www.reddit.com/r/dataisbeautiful/comments/3y5t1t/i_visualized_my_instagram_connections_oc/)
 
-[The photo was used as an *album cover* for a Japan-based artist, Metatron (I really like the soundtrack and I'm happy to have assited in it's creation)](https://hellobilly.bandcamp.com/releases)
+[The photo was used as an *album cover* for a Japan-based artist, Metatron (I really like the soundtrack and I'm happy to have assisted in it's creation)](https://hellobilly.bandcamp.com/releases)
 
 ---
