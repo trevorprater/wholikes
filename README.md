@@ -19,5 +19,5 @@ Please do not use the quality of the code in this repo to judge my current skill
 
 
 
-Love, Trevor.
+Love, Trevor
 
