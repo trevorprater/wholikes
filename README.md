@@ -1,5 +1,3 @@
-This code is shit; let it be known.
-
 Funny story, this rudimentary piece of software yielded my most popular creation on Dec 25, 2015, resulting in millions of views from people around the globe. Please do not use this code to judge my skills, instead, enjoy the art for what it is.
 
 
