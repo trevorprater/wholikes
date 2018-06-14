@@ -1,4 +1,4 @@
-This rudimentary script yielded my most popular creation on Dec 25, 2015, resulting in millions of views from people around the globe. Please do not use this code to judge my skills, instead, enjoy the art for what it is.
+This rudimentary script yielded my most popular creation on Dec 25, 2015, resulting in many millions of views from around the globe. Please do not judge my coding skills by this script, instead, I hope you enjoy the art for what it is.
 
 It is worth noting that the nodes with no connections represent 75,000 fake instagram accounts that I created before generating this image.
 
